@@ -102,10 +102,78 @@ void test_add_values(const int num_thr = num_threads)
     std::cout << "list size = " << safe_list.size() << std::endl << safe_list;
 }
 
+void test_pop_front()
+{
+    std::barrier sync_point(3, []()noexcept { std::cout << "test_pop_push_front all threads are finished\n"; });
+
+    ThreadSafeList<int> safe_list{ 1,2,3,4,5 };
+
+    std::thread thread_pop_front_1([&sync_point, &safe_list]()
+        {
+            for (size_t i = 0; i < 2; ++i)
+            {
+                safe_list.pop_front();
+            }
+
+            sync_point.arrive_and_wait();
+        });
+
+    std::thread thread_pop_front_2([&sync_point, &safe_list]()
+        {
+            for (size_t i = 0; i < 2; ++i)
+            {
+                safe_list.pop_front();
+            }
+
+            sync_point.arrive_and_wait();
+        });
+
+    thread_pop_front_1.detach();
+    thread_pop_front_2.detach();
+
+    sync_point.arrive_and_wait();
+
+    std::cout << "list : \n" << safe_list;
+}
+
+void test_pop_back()
+{
+    std::barrier sync_point(3, []()noexcept { std::cout << "test_pop_push_back all threads are finished\n"; });
+    ThreadSafeList<int> safe_list{ 1,2,3,4,5 };
+
+    std::thread thread_pop_back_1([&sync_point, &safe_list]()
+        {
+            for (size_t i = 0; i < 2; ++i)
+            {
+                safe_list.pop_back();
+            }
+
+            sync_point.arrive_and_wait();
+        });
+
+    std::thread thread_pop_back_2([&sync_point, &safe_list]()
+        {
+            for (size_t i = 0; i < 2; ++i)
+            {
+                //safe_list.push_back(10 + i + 1);
+                safe_list.pop_back();
+            }
+
+            sync_point.arrive_and_wait();
+        });
+
+    thread_pop_back_1.detach();
+    thread_pop_back_2.detach();
+
+    sync_point.arrive_and_wait();
+
+    std::cout << "list : \n" << safe_list;
+}
+
 void test_pop_front_back()
 {
-    std::barrier sync_point(3);
-    ThreadSafeList<int> safe_list{ 0,0,0 };
+    std::barrier sync_point(5);
+    ThreadSafeList<int> safe_list{ 5,5,5 };
 
     std::thread thread_pop_front([&sync_point, &safe_list]()
         {
@@ -117,39 +185,39 @@ void test_pop_front_back()
             sync_point.arrive_and_wait();
         });
 
-    //std::thread thread_pop_back([&sync_point, &safe_list]()
-    //    {
-    //        for (size_t i = 0; i < 2; ++i)
-    //        {
-    //            safe_list.pop_back();
-    //        }
+    std::thread thread_pop_back([&sync_point, &safe_list]()
+        {
+            for (size_t i = 0; i < 2; ++i)
+            {
+                safe_list.pop_back();
+            }
 
-    //        sync_point.arrive_and_wait();
-    //    });
+            sync_point.arrive_and_wait();
+        });
 
-    //std::thread thread_push_front([&sync_point, &safe_list]()
-    //    {
-    //        for (size_t i = 0; i < 2; ++i)
-    //        {
-    //            safe_list.push_front(10);
-    //        }
+    std::thread thread_push_front([&sync_point, &safe_list]()
+        {
+            for (size_t i = 0; i < 2; ++i)
+            {
+                safe_list.push_front(10 + i + 1);
+            }
 
-    //        sync_point.arrive_and_wait();
-    //    });
+            sync_point.arrive_and_wait();
+        });
 
     std::thread thread_push_back([&sync_point, &safe_list]()
         {
             for (size_t i = 0; i < 2; ++i)
             {
-                safe_list.push_back(20);
+                safe_list.push_back(20 + i + 1);
             }
 
             sync_point.arrive_and_wait();
         });
 
     thread_pop_front.detach();
-    //thread_pop_back.detach();
-    //thread_push_front.detach();
+    thread_pop_back.detach();
+    thread_push_front.detach();
     thread_push_back.detach();
     
     sync_point.arrive_and_wait();

@@ -6,23 +6,24 @@
 #include <atomic>
 #include <algorithm>
 #include <initializer_list> 
+#include <syncstream>
 
 static int counter = 0;
 
 template<typename Type>
 class ThreadSafeList
 {
-	friend std::ostream& operator<<(std::ostream& cout, ThreadSafeList& list)
+	friend std::ostream& operator<<(std::ostream& cout, const ThreadSafeList& list)
 	{
-		if (!list.m_head)
+		if (list.m_head == nullptr)
 		{
 			return cout;
 		}
-
-		for (auto iter_node = list.m_head; iter_node != nullptr; iter_node = iter_node->next)
+		auto sync_out = std::osyncstream(cout);
+		for (auto iter_node = list.m_head; iter_node != nullptr; iter_node = iter_node->next.get())
 		{
 			std::shared_lock<std::shared_mutex> lock(iter_node->node_mutex);
-			cout << "thr: " << std::this_thread::get_id() << " value = " << *iter_node->data << std::endl;
+			sync_out << *iter_node->data << std::endl;
 			++counter;
 		}
 
@@ -31,22 +32,21 @@ class ThreadSafeList
 
 	struct Node
 	{
-		Node(const Type& value, Node* prev_n = nullptr, Node* next_n = nullptr)
+		Node() = default;
+		Node(const Type& value)
 			:
 			data(std::make_shared<Type>(value)),
-			prev(prev_n),
-			next(next_n)
+			prev(nullptr)
 		{
 
 		}
 		~Node()
 		{
-			std::cout << "node destructor = " << *data << std::endl;
+			std::cout <<"node destructor = " << *data << std::endl;
 		}
-
 		std::shared_ptr<Type> data;
 		Node* prev;// unique
-		Node* next;// raw pointer
+		std::unique_ptr<Node> next;// raw pointer
 		std::shared_mutex node_mutex;
 	};
 
@@ -55,17 +55,7 @@ public:
 	ThreadSafeList(const std::initializer_list<Type>& values);
 	~ThreadSafeList()
 	{
-		while (m_head != nullptr)
-		{
-			Node* remove_node = nullptr;
-			{
-				std::unique_lock<std::shared_mutex> lock(m_head->node_mutex);
-				remove_node = m_head;
-				m_head = m_head->next;
-			}
-
-			delete remove_node;
-		}
+		delete m_head;
 	}
 	inline int size() const
 	{
@@ -82,7 +72,7 @@ public:
 
 
 private:
-	std::atomic_int m_size;
+	size_t m_size;
 	Node* m_head;
 	Node* m_tail;
 };
@@ -104,15 +94,18 @@ inline ThreadSafeList<Type>::ThreadSafeList(const std::initializer_list<Type>& v
 
 	for( ; begin != end; ++begin)
 	{
-		m_tail->next = new Node{ *begin, m_tail };
-		m_tail = m_tail->next;
+		Node* new_tail = new Node{ *begin };
+		new_tail->prev = m_tail;
+
+		m_tail->next.reset(new_tail);
+		m_tail = m_tail->next.get();
 	}
 }
 
 template<typename Type>
 inline Type ThreadSafeList<Type>::front()
 {
-	if (!m_head)
+	if (m_head == nullptr)
 	{
 		return {};
 	}
@@ -125,7 +118,7 @@ inline Type ThreadSafeList<Type>::front()
 template<typename Type>
 inline const Type& ThreadSafeList<Type>::front() const
 {
-	if (m_size <= 0)
+	if (m_head == nullptr)
 	{
 		return {};
 	}
@@ -138,7 +131,7 @@ inline const Type& ThreadSafeList<Type>::front() const
 template<typename Type>
 inline Type ThreadSafeList<Type>::back()
 {
-	if (m_size <= 0)
+	if (m_tail == nullptr)
 	{
 		return {};
 	}
@@ -151,7 +144,7 @@ inline Type ThreadSafeList<Type>::back()
 template<typename Type>
 inline const Type& ThreadSafeList<Type>::back() const
 {
-	if (m_size <= 0)
+	if (m_tail == nullptr)
 	{
 		return {};
 	}
@@ -164,7 +157,7 @@ inline const Type& ThreadSafeList<Type>::back() const
 template<typename Type>
 inline void ThreadSafeList<Type>::push_front(const Type& value)
 {
-	if (m_size <= 0)
+	if (m_head == nullptr)
 	{
 		m_head = new Node{ value };
 		m_tail = m_head;
@@ -175,8 +168,9 @@ inline void ThreadSafeList<Type>::push_front(const Type& value)
 
 	std::unique_lock<std::shared_mutex> lock(m_head->node_mutex);
 
-	m_head->prev = new Node{ value, nullptr, m_head };
-	m_head = m_head->prev;
+	Node* new_head = new Node{ value };
+	new_head->next.reset(m_head);
+	m_head = new_head;
 
 	++m_size;
 }
@@ -184,7 +178,7 @@ inline void ThreadSafeList<Type>::push_front(const Type& value)
 template<typename Type>
 inline void ThreadSafeList<Type>::push_back(const Type& value)
 {
-	if (m_size <= 0)
+	if (m_head == nullptr)
 	{
 		m_head = new Node{ value };
 		m_tail = m_head;
@@ -194,9 +188,13 @@ inline void ThreadSafeList<Type>::push_back(const Type& value)
 	}
 
 	std::unique_lock<std::shared_mutex> lock(m_tail->node_mutex);
+	std::cout  << " push_back " << std::endl;
 
-	m_tail->next = new Node(value, m_tail, nullptr);
-	m_tail = m_tail->next;
+	Node* new_tail = new Node{ value };
+	new_tail->prev = m_tail;
+
+	m_tail->next.reset(new_tail);
+	m_tail = m_tail->next.get();
 
 	++m_size;
 }
@@ -204,19 +202,19 @@ inline void ThreadSafeList<Type>::push_back(const Type& value)
 template<typename Type>
 inline void ThreadSafeList<Type>::pop_front()
 {
-	if (m_size <= 0)
+	if (m_head == nullptr)
 	{
 		return;
 	}
-
-	--m_size;
 
 	Node* remove_head = nullptr;
 
 	{
 		std::unique_lock<std::shared_mutex> lock(m_head->node_mutex);
 		remove_head = m_head;
-		m_head = m_head->next;
+		m_head = m_head->next.release();
+
+		--m_size;
 	}
 
 	delete remove_head;
@@ -225,19 +223,18 @@ inline void ThreadSafeList<Type>::pop_front()
 template<typename Type>
 inline void ThreadSafeList<Type>::pop_back()
 {
-	if (m_size == 0)
+	if (m_tail == nullptr)
 	{
 		return;
 	}
 
-	--m_size;
-
 	Node* remove_tail = nullptr;
-
 	{
 		std::unique_lock<std::shared_mutex> lock(m_tail->node_mutex);
 		remove_tail = m_tail;
 		m_tail = m_tail->prev;
+
+		--m_size;
 	}
 
 	delete remove_tail;
