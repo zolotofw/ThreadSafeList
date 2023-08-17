@@ -23,7 +23,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="example_thread_safe_list.h" />
-    <ClInclude Include="test_cases.hpp" />
     <ClInclude Include="ThreadSafeList.hpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">

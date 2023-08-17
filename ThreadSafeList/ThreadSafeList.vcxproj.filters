@@ -20,9 +20,6 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="test_cases.hpp">
-      <Filter>Source Files</Filter>
-    </ClInclude>
     <ClInclude Include="ThreadSafeList.hpp">
       <Filter>Source Files</Filter>
     </ClInclude>
