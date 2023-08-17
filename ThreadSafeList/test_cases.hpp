@@ -8,62 +8,47 @@
 
 constexpr int num_threads = 3;
 
-void test_out_stream(const int num_thr = num_threads)
-{
-    std::barrier sync_point(num_thr + 1);
-    auto func = [&sync_point]<typename Type>(ThreadSafeList<Type>&list) -> void // Cant pass this to thread?
-    {
-        std::cout << list;
-        sync_point.arrive_and_wait();
-    };
-
-    ThreadSafeList<int> safe_list{ 1,2,3 };
-
-    std::vector<std::thread> threads;
-
-    for (size_t i = 0; i < num_thr; ++i)
-    {
-        threads.emplace_back(std::thread([&sync_point, &safe_list]()
-            {
-                std::cout << safe_list;
-                sync_point.arrive_and_wait();
-            }));
-    }
-
-    for (auto& thr : threads)
-    {
-        thr.detach();
-    }
-
-    sync_point.arrive_and_wait();
-
-    std::cout << "counter = " << counter << std::endl;
-}
-
 template<typename Type>
 void add_value(size_t amount, int value,  ThreadSafeList<Type>& list)
 {
     for (size_t i = 0; i < amount; ++i)
     {
-        list.push_front(value);
-        list.push_back(value);
+        list.push_front(value + i);
+        list.push_back(value + i);
     }
 }
 
-void test_add_values_empty_list(const int num_thr = num_threads)
+void test_push_front_and_back_if_empty_list()
 {
+    int num_thr = 4;
+
     std::barrier sync_point(num_thr + 1);
     ThreadSafeList<int> safe_list;
 
     std::vector<std::thread> threads;
 
-    for (size_t i = 0; i < num_threads; ++i)
+    int value = 0;
+    bool if_push_front_or_back = true;
+
+    for (size_t i = 0; i < num_thr; ++i)
     {
-        threads.emplace_back(std::thread([&sync_point, &safe_list, i]()
+        threads.emplace_back(std::thread([&if_push_front_or_back, &sync_point, &safe_list, &value]()
             {
-                add_value(i+1, i+1, safe_list);
+                for (size_t i = 0; i < 3; ++i)
+                {
+                    if (if_push_front_or_back)
+                    {
+                        safe_list.push_front(++value);//1.2.3.7.8.9.
+                    }
+                    else
+                    {
+                        safe_list.push_back(++value);//4.5.6.10.11.12
+                    }
+                }
                 sync_point.arrive_and_wait();
             }));
+
+        if_push_front_or_back = !if_push_front_or_back;
     }
 
     for (auto& thr : threads)
@@ -72,11 +57,9 @@ void test_add_values_empty_list(const int num_thr = num_threads)
     }
 
     sync_point.arrive_and_wait();
-
-    std::cout << "test empty: list size = " << safe_list.size() << std::endl << safe_list;
 }
 
-void test_add_values(const int num_thr = num_threads)
+void test_push_front_and_back(const int num_thr = num_threads)
 {
     std::barrier sync_point(num_thr + 1);
     ThreadSafeList<int> safe_list{ 0,0,0,0,0 };
@@ -138,7 +121,7 @@ void test_pop_front()
 
 void test_pop_back()
 {
-    std::barrier sync_point(3, []()noexcept { std::cout << "test_pop_push_back all threads are finished\n"; });
+    std::barrier sync_point(3, []()noexcept { std::cout << "test_pop_back all threads are finished\n"; });
     ThreadSafeList<int> safe_list{ 1,2,3,4,5 };
 
     std::thread thread_pop_back_1([&sync_point, &safe_list]()
@@ -153,9 +136,8 @@ void test_pop_back()
 
     std::thread thread_pop_back_2([&sync_point, &safe_list]()
         {
-            for (size_t i = 0; i < 2; ++i)
+            for (size_t i = 0; i < 3; ++i)
             {
-                //safe_list.push_back(10 + i + 1);
                 safe_list.pop_back();
             }
 
