@@ -1,7 +1,6 @@
 #include "pch.h"
 #include "../ThreadSafeList/ThreadSafeList.hpp"
 #include <barrier>
-#include <crtdbg.h>
 
 
 TEST(TestThreadSafeList, TestPushFrontAndBackIfEmpty)
@@ -167,7 +166,7 @@ TEST(TestThreadSafeList, TestPopBackAllElements)
 
     std::thread thread_pop_front_1([&sync_point, &safe_list]()
         {
-            for (size_t i = 0; i < 2; ++i)
+            for (size_t i = 0; i < 5; ++i)
             {
                 safe_list.pop_back();
             }
@@ -190,7 +189,7 @@ TEST(TestThreadSafeList, TestPopBackAllElements)
 
     sync_point.arrive_and_wait();
 
-    EXPECT_EQ(safe_list.size(), 0);
+    EXPECT_TRUE(safe_list.empty());
 }
 
 TEST(TestThreadSafeList, TestPopBackLeaveOneElement)

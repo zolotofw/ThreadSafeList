@@ -83,6 +83,10 @@ public:
 	{
 		return m_size;
 	}
+	inline bool empty() const
+	{
+		return m_head == nullptr;
+	}
 	Type front();
 	const Type& front() const;
 	Type back();
@@ -252,44 +256,25 @@ inline void ThreadSafeList<Type>::pop_back()
 		return;
 	}
 
-	{
-		std::lock_guard<std::shared_mutex> lock(m_tail->node_mutex);
-		m_tail = m_tail->prev ? m_tail->prev : m_tail;
-		--m_size;
-	}
+	Node* remove_tail = nullptr;
 
-	if (m_tail && m_tail->next)
+	if(m_tail->prev != nullptr)
 	{
-		m_tail->next.reset();
+		std::scoped_lock<std::shared_mutex, std::shared_mutex> lock(m_tail->node_mutex, m_tail->prev->node_mutex);
+		m_tail = m_tail->prev;
+		remove_tail = m_tail->next.release();
+		--m_size;
 	}
 	else
 	{
-		delete m_tail;
-		m_head = nullptr;
+		std::lock_guard<std::shared_mutex> lk(m_tail->node_mutex);
+		remove_tail = m_tail;
 		m_tail = nullptr;
+		m_head = nullptr;
+		--m_size;
 	}
 
-
-
-	//Node* new_tail = nullptr;
-	//{
-	//	std::unique_lock<std::shared_mutex> lock_old_tail(m_tail->node_mutex);
-	//	new_tail = m_tail->prev ? m_tail->prev : m_tail;
-
-	//	if (new_tail && new_tail->next)
-	//	{
-	//		new_tail->next.reset();
-	//		m_tail = new_tail;
-	//	}
-	//	else
-	//	{
-	//		delete new_tail;
-	//		m_head = nullptr;
-	//		m_tail = nullptr;
-	//	}
-
-	//	--m_size;
-	//}
+	delete remove_tail;
 }
 
 class Testing
