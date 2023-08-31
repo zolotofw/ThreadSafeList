@@ -9,18 +9,6 @@
 #include <syncstream>
 #include <string>
 
-namespace debug_utils
-{
-	static int counter = 0;
-
-	std::mutex cout_mutex;
-	void sync_print(const std::thread::id& id, const std::string& msg)
-	{
-		std::lock_guard<std::mutex> lk(cout_mutex);
-		std::cout << "thr = " << id << msg << std::endl;
-	}
-}
-
 class Testing;
 
 template<typename Type>
@@ -37,8 +25,7 @@ class ThreadSafeList
 		for (auto iter_node = list.m_head; iter_node != nullptr; iter_node = iter_node->next.get())
 		{
 			std::shared_lock<std::shared_mutex> lock(iter_node->node_mutex);
-			sync_out << *iter_node->data << std::endl;
-			++debug_utils::counter;
+			sync_out << std::to_string(*iter_node->data) + "\n";
 		}
 
 		return cout;

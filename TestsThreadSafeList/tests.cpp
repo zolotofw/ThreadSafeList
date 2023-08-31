@@ -121,7 +121,7 @@ TEST(TestThreadSafeList, TestPopFrontAllElements)
 
     sync_point.arrive_and_wait();
 
-    EXPECT_EQ(safe_list.size(), 0);
+    EXPECT_TRUE(safe_list.empty());
 }
 
 TEST(TestThreadSafeList, TestPopFrontLeaveOneElement)

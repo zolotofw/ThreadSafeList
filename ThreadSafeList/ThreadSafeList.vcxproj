@@ -19,9 +19,6 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="main.cpp" />
-  </ItemGroup>
-  <ItemGroup>
     <ClInclude Include="example_thread_safe_list.h" />
     <ClInclude Include="ThreadSafeList.hpp" />
   </ItemGroup>
